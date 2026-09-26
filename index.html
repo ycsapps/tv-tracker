@@ -72,5 +72,50 @@ render=function(){
  v35PreviousRender();
 };
 
+/* V3.6: correct archive pagination and animation discovery presets. */
+const v36ArchiveRender=renderArchive;
+const v36ArchiveFetch=fetchArchive;
+const ANIMATION_PRESETS=[['','All animation'],['comedy','Animated comedy'],['family','Family animation'],['kids','Children’s animation'],['action','Animated action & adventure'],['fantasy','Animated sci-fi & fantasy']];
+let animationPreset='';
+renderArchive=function(m){
+ v36ArchiveRender(m);
+ const genre=m.querySelector('#archiveGenre');
+ if(genre && !Array.from(genre.options).some(o=>o.value==='16'))genre.insertAdjacentHTML('beforeend','<option value="16">Animation</option>');
+ if(genre)genre.value=archiveFilters.genre;
+ if(archiveFilters.genre==='16'){
+  const wrap=document.createElement('label');wrap.textContent='Animation type (approximate)';
+  const sel=document.createElement('select');sel.className='field';sel.id='animationPreset';
+  sel.innerHTML=ANIMATION_PRESETS.map(([v,t])=>`<option value="${v}" ${animationPreset===v?'selected':''}>${t}</option>`).join('');
+  sel.onchange=()=>{animationPreset=sel.value;archivePage=1;archiveResults=[];render()};
+  wrap.appendChild(sel);m.querySelector('.archive-filters').appendChild(wrap);
+ }
+ if(genre)genre.onchange=()=>{archiveFilters.genre=genre.value;animationPreset='';archivePage=1;archiveResults=[];render()};
+};
+fetchArchive=async function(more){
+ if(archiveBusy)return;
+ archiveBusy=true;archiveError='';
+ const requestedPage=more?archivePage+1:1;
+ if(!more){archivePage=1;archiveResults=[]}
+ render();
+ try{
+  const f=archiveFilters,q=new URLSearchParams({sort_by:f.sort,include_adult:'false',page:String(requestedPage),watch_region:'GB'});
+  if(f.decade!=='all'){q.set('first_air_date.gte',f.decade+'-01-01');q.set('first_air_date.lte',String(Number(f.decade)+9)+'-12-31')}
+  if(f.country!=='all')q.set('with_origin_country',f.country);
+  if(f.language!=='all')q.set('with_original_language',f.language);
+  if(f.status==='ended')q.set('with_status','3');
+  if(f.status==='returning')q.set('with_status','0');
+  if(f.genre)q.set('with_genres',f.genre);
+  if(f.genre==='16'&&animationPreset){const genreIds={comedy:'35',family:'10751',kids:'10762',action:'10759',fantasy:'10765'};q.set('with_genres','16,'+genreIds[animationPreset])}
+  if(f.sort==='vote_average.desc')q.set('vote_count.gte','50');
+  if(f.network)q.set('with_networks',f.network);
+  const data=await api('/discover/tv?'+q.toString());
+  const seen=new Set(more?archiveResults.map(x=>x.id):[]);
+  const fresh=(data.results||[]).filter(x=>{if(seen.has(x.id))return false;seen.add(x.id);return true});
+  archiveResults=more?[...archiveResults,...fresh]:fresh;
+  archivePage=data.page||requestedPage;
+  archivePages=Math.min(data.total_pages||1,500);
+ }catch(e){archiveError=e.message}
+ finally{archiveBusy=false;render()}
+};
 render();
 </script></body></html>
