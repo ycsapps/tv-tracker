@@ -72,50 +72,62 @@ render=function(){
  v35PreviousRender();
 };
 
-/* V3.6: correct archive pagination and animation discovery presets. */
-const v36ArchiveRender=renderArchive;
-const v36ArchiveFetch=fetchArchive;
-const ANIMATION_PRESETS=[['','All animation'],['comedy','Animated comedy'],['family','Family animation'],['kids','Children’s animation'],['action','Animated action & adventure'],['fantasy','Animated sci-fi & fantasy']];
-let animationPreset='';
+/* V3.7: complete TMDB TV genres, curated subgenres, network and TV type discovery. */
+const V37_GENRES=[['','All genres'],['10759','Action & Adventure'],['16','Animation'],['35','Comedy'],['80','Crime'],['99','Documentary'],['18','Drama'],['10751','Family'],['10762','Kids'],['9648','Mystery'],['10763','News'],['10764','Reality'],['10765','Sci-Fi & Fantasy'],['10766','Soap'],['10767','Talk'],['10768','War & Politics'],['37','Western']];
+/* Subgenres are discovery approximations using TMDB genre intersections/exclusions, not official classifications. */
+const V37_SUBGENRES={
+ '10759':[['','All action & adventure'],['80','Crime action'],['18','Action drama'],['10765','Fantasy adventure'],['16','Animated action'],['10768','Military action']],
+ '16':[['','All animation'],['35','Animated comedy'],['10751','Family animation'],['10762','Children’s animation'],['10759','Animated action & adventure'],['10765','Animated sci-fi & fantasy'],['18','Animated drama'],['80','Animated crime'],['adult','Adult-oriented animation (approx.)']],
+ '35':[['','All comedy'],['18','Comedy-drama'],['10751','Family comedy'],['80','Crime comedy'],['16','Animated comedy'],['10765','Fantasy comedy'],['10767','Comedy talk shows']],
+ '80':[['','All crime'],['18','Crime drama'],['9648','Crime mystery'],['10759','Crime action'],['99','True-crime documentary (approx.)'],['35','Crime comedy']],
+ '99':[['','All documentaries'],['80','Crime documentary'],['10768','War & politics documentary'],['10751','Family documentary'],['10765','Science & fantasy documentary (approx.)']],
+ '18':[['','All drama'],['80','Crime drama'],['9648','Mystery drama'],['10751','Family drama'],['10765','Sci-fi & fantasy drama'],['10768','Political / war drama'],['35','Comedy-drama'],['10766','Soap drama']],
+ '10751':[['','All family'],['35','Family comedy'],['18','Family drama'],['16','Family animation'],['10759','Family adventure'],['10762','Children’s family shows']],
+ '10762':[['','All kids'],['16','Children’s animation'],['10751','Kids & family'],['10759','Kids action & adventure'],['35','Kids comedy'],['10765','Kids fantasy']],
+ '9648':[['','All mystery'],['80','Crime mystery'],['18','Mystery drama'],['10765','Supernatural / fantasy mystery (approx.)'],['10759','Adventure mystery']],
+ '10763':[['','All news'],['10767','News & talk'],['99','News documentary']],
+ '10764':[['','All reality'],['35','Comedy reality'],['10751','Family reality'],['99','Documentary reality (approx.)'],['10767','Reality & talk']],
+ '10765':[['','All sci-fi & fantasy'],['18','Sci-fi & fantasy drama'],['10759','Fantasy adventure'],['16','Animated sci-fi & fantasy'],['9648','Mystery / supernatural (approx.)'],['35','Fantasy comedy']],
+ '10766':[['','All soaps'],['18','Soap drama'],['10751','Family soap'],['80','Crime soap']],
+ '10767':[['','All talk shows'],['10763','News talk'],['35','Comedy talk'],['10764','Reality talk']],
+ '10768':[['','All war & politics'],['18','War / political drama'],['99','War / politics documentary'],['10759','Military action']],
+ '37':[['','All westerns'],['18','Western drama'],['10759','Western adventure'],['35','Western comedy']]
+};
+const V37_NETWORKS=[['','All networks'],['2','ABC'],['6','NBC'],['16','CBS'],['19','FOX'],['71','The CW'],['49','HBO'],['67','Showtime'],['213','Netflix'],['1024','Prime Video'],['2739','Disney+'],['2552','Apple TV+'],['453','Hulu'],['3186','Max'],['3353','Peacock'],['4330','Paramount+'],['4','BBC One'],['9','BBC Two'],['332','BBC Three'],['26','Channel 4'],['149','ITV1'],['43','National Geographic'],['64','Discovery'],['174','AMC'],['318','Starz'],['88','FX'],['56','Cartoon Network'],['54','Disney Channel'],['13','Nickelodeon'],['44','Disney XD'],['65','History'],['91','Animal Planet'],['custom','Other network (enter TMDB ID)']];
+const V37_TYPES=[['','All programme types'],['0','Documentary'],['1','News'],['2','Limited series / Miniseries'],['3','Reality'],['4','Scripted'],['5','Talk Show'],['6','Video']];
+let v37Subgenre='',v37Type='',v37CustomNetwork='';
+function v37Select(label,id,options,value){return `<label>${label}<select class="field" id="${id}">${options.map(([v,t])=>`<option value="${esc(v)}" ${String(v)===String(value)?'selected':''}>${esc(t)}</option>`).join('')}</select></label>`}
 renderArchive=function(m){
- v36ArchiveRender(m);
- const genre=m.querySelector('#archiveGenre');
- if(genre && !Array.from(genre.options).some(o=>o.value==='16'))genre.insertAdjacentHTML('beforeend','<option value="16">Animation</option>');
- if(genre)genre.value=archiveFilters.genre;
- if(archiveFilters.genre==='16'){
-  const wrap=document.createElement('label');wrap.textContent='Animation type (approximate)';
-  const sel=document.createElement('select');sel.className='field';sel.id='animationPreset';
-  sel.innerHTML=ANIMATION_PRESETS.map(([v,t])=>`<option value="${v}" ${animationPreset===v?'selected':''}>${t}</option>`).join('');
-  sel.onchange=()=>{animationPreset=sel.value;archivePage=1;archiveResults=[];render()};
-  wrap.appendChild(sel);m.querySelector('.archive-filters').appendChild(wrap);
- }
- if(genre)genre.onchange=()=>{archiveFilters.genre=genre.value;animationPreset='';archivePage=1;archiveResults=[];render()};
+ m.innerHTML=`<div class="panel hero"><div class="eyebrow">Your lifetime TV archive</div><h2>Rediscover what you watched.</h2><p>Browse by decade, country, genre, programme type and network. Save shows with the + button.</p></div><div class="panel"><div class="archive-filters">${v37Select('Decade','v37Decade',[['all','All decades'],...Array.from({length:10},(_,i)=>[String(1940+i*10),String(1940+i*10)+'s'])],archiveFilters.decade)}${v37Select('Origin','v37Country',[['US','United States'],['GB','United Kingdom'],['all','All countries']],archiveFilters.country)}${v37Select('Original language','v37Language',[['en','English'],['all','All languages'],['fr','French'],['es','Spanish'],['ko','Korean'],['ja','Japanese'],['de','German'],['it','Italian'],['hi','Hindi']],archiveFilters.language)}${v37Select('Show status','v37Status',[['all','All statuses'],['ended','Ended (includes some cancelled shows)'],['returning','Returning series']],archiveFilters.status)}${v37Select('Genre','v37Genre',V37_GENRES,archiveFilters.genre)}${archiveFilters.genre?v37Select('Subgenre (approximate)','v37Subgenre',V37_SUBGENRES[archiveFilters.genre]||[['','All']],v37Subgenre):''}${v37Select('Programme type','v37Type',V37_TYPES,v37Type)}${v37Select('Network / broadcaster','v37Network',V37_NETWORKS,archiveFilters.network)}${archiveFilters.network==='custom'?`<label>TMDB network ID<input class="field" id="v37CustomNetwork" type="number" min="1" step="1" inputmode="numeric" placeholder="Enter network ID" value="${esc(v37CustomNetwork)}"></label>`:''}${v37Select('Sort by','v37Sort',ARCHIVE_SORTS,archiveFilters.sort)}</div><button class="btn" id="browseArchive" ${archiveBusy?'disabled':''}>${archiveBusy?'Loading…':'Browse shows'}</button><p><small>Subgenres are approximate combinations of TMDB genres, not official age ratings. Adult-oriented animation excludes shows tagged Kids or Family, but may still include other animation. Network means the original network, not necessarily where a show streams today. Limited Series uses TMDB’s Miniseries type. “Ended” does not reliably distinguish cancellation.</small></p></div>${archiveError?`<p class="error">${esc(archiveError)}</p>`:''}<div class="row between section"><h2>Browse results</h2><small>${archiveResults.length?`Page ${archivePage} of ${archivePages} · ${archiveResults.length} unique shows`:''}</small></div>${archiveResults.length?`<div class="grid">${archiveResults.map(searchCard).join('')}</div><div class="row section"><button class="btn alt" id="archiveMore" ${archiveBusy||archivePage>=archivePages?'disabled':''}>${archiveBusy?'Loading…':archivePage>=archivePages?'End of results':'Load more'}</button></div>`:'<div class="empty">Choose your filters and tap Browse shows.</div>'}`;
+ const bind=(id,fn)=>{const el=m.querySelector('#'+id);if(el)el.onchange=()=>{fn(el.value);archivePage=1;archivePages=1;archiveResults=[];archiveError='';render()}};
+ bind('v37Decade',v=>archiveFilters.decade=v);bind('v37Country',v=>archiveFilters.country=v);bind('v37Language',v=>archiveFilters.language=v);bind('v37Status',v=>archiveFilters.status=v);bind('v37Genre',v=>{archiveFilters.genre=v;v37Subgenre=''});bind('v37Subgenre',v=>v37Subgenre=v);bind('v37Type',v=>v37Type=v);bind('v37Network',v=>archiveFilters.network=v);bind('v37Sort',v=>archiveFilters.sort=v);
+ const custom=m.querySelector('#v37CustomNetwork');if(custom)custom.oninput=()=>{v37CustomNetwork=custom.value.trim();archiveResults=[];archivePage=1;archivePages=1};
+ $('#browseArchive').onclick=()=>fetchArchive(false);if($('#archiveMore'))$('#archiveMore').onclick=()=>fetchArchive(true);
 };
 fetchArchive=async function(more){
  if(archiveBusy)return;
- archiveBusy=true;archiveError='';
+ if(more&&archivePage>=archivePages)return;
+ if(archiveFilters.network==='custom'&&!/^[1-9]\d*$/.test(v37CustomNetwork)){archiveError='Enter a valid positive TMDB network ID.';render();return}
  const requestedPage=more?archivePage+1:1;
- if(!more){archivePage=1;archiveResults=[]}
- render();
+ archiveBusy=true;archiveError='';if(!more){archivePage=1;archiveResults=[]}render();
  try{
   const f=archiveFilters,q=new URLSearchParams({sort_by:f.sort,include_adult:'false',page:String(requestedPage),watch_region:'GB'});
   if(f.decade!=='all'){q.set('first_air_date.gte',f.decade+'-01-01');q.set('first_air_date.lte',String(Number(f.decade)+9)+'-12-31')}
   if(f.country!=='all')q.set('with_origin_country',f.country);
   if(f.language!=='all')q.set('with_original_language',f.language);
-  if(f.status==='ended')q.set('with_status','3');
-  if(f.status==='returning')q.set('with_status','0');
-  if(f.genre)q.set('with_genres',f.genre);
-  if(f.genre==='16'&&animationPreset){const genreIds={comedy:'35',family:'10751',kids:'10762',action:'10759',fantasy:'10765'};q.set('with_genres','16,'+genreIds[animationPreset])}
+  if(f.status==='ended')q.set('with_status','3');if(f.status==='returning')q.set('with_status','0');
+  if(f.genre){if(v37Subgenre==='adult'&&f.genre==='16'){q.set('with_genres','16');q.set('without_genres','10762,10751')}else q.set('with_genres',v37Subgenre?f.genre+','+v37Subgenre:f.genre)}
+  if(v37Type!=='')q.set('with_type',v37Type);
   if(f.sort==='vote_average.desc')q.set('vote_count.gte','50');
-  if(f.network)q.set('with_networks',f.network);
+  if(f.network)q.set('with_networks',f.network==='custom'?v37CustomNetwork:f.network);
   const data=await api('/discover/tv?'+q.toString());
   const seen=new Set(more?archiveResults.map(x=>x.id):[]);
   const fresh=(data.results||[]).filter(x=>{if(seen.has(x.id))return false;seen.add(x.id);return true});
   archiveResults=more?[...archiveResults,...fresh]:fresh;
-  archivePage=data.page||requestedPage;
-  archivePages=Math.min(data.total_pages||1,500);
+  archivePage=Number(data.page)||requestedPage;archivePages=Math.min(Number(data.total_pages)||1,500);
  }catch(e){archiveError=e.message}
  finally{archiveBusy=false;render()}
 };
+
 render();
 </script></body></html>
