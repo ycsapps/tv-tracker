@@ -129,5 +129,30 @@ fetchArchive=async function(more){
  finally{archiveBusy=false;render()}
 };
 
+/* V3.8: finer premiere-year discovery. Existing saved data remains unchanged. */
+let v38Period='all',v38Year='all',v38Custom=false,v38From='',v38To='';
+const v38PreviousArchiveRender=renderArchive,v38PreviousArchiveFetch=fetchArchive;
+function v38YearOptions(){const decade=archiveFilters.decade;let start=decade==='all'?1940:Number(decade),end=decade==='all'?new Date().getFullYear():Math.min(start+9,new Date().getFullYear());if(v38Period==='first'&&decade!=='all')end=Math.min(end,start+4);if(v38Period==='second'&&decade!=='all')start+=5;return Array.from({length:Math.max(0,end-start+1)},(_,i)=>[String(start+i),String(start+i)])}
+function v38ResetResults(){archivePage=1;archivePages=1;archiveResults=[];archiveError=''}
+renderArchive=function(m){
+ v38PreviousArchiveRender(m);
+ const decade=m.querySelector('#v37Decade');
+ if(decade)decade.onchange=()=>{archiveFilters.decade=decade.value;v38Period='all';v38Year='all';v38ResetResults();render()};
+ const wrap=document.createElement('div');wrap.className='v38-years';
+ wrap.innerHTML=`<div class="archive-filters"><label>Part of decade<select class="field" id="v38Period" ${archiveFilters.decade==='all'||v38Custom?'disabled':''}><option value="all" ${v38Period==='all'?'selected':''}>Entire decade</option><option value="first" ${v38Period==='first'?'selected':''}>First five years</option><option value="second" ${v38Period==='second'?'selected':''}>Second five years</option></select></label><label>Specific premiere year<select class="field" id="v38Year" ${v38Custom?'disabled':''}><option value="all">All years in selection</option>${v38YearOptions().map(([v,t])=>`<option value="${v}" ${v38Year===v?'selected':''}>${t}</option>`).join('')}</select></label></div><label style="display:flex;gap:9px;align-items:center;margin:8px 0 12px"><input type="checkbox" id="v38Custom" ${v38Custom?'checked':''}> Use custom premiere-year range</label><div class="archive-filters" id="v38CustomFields" ${v38Custom?'':'style="display:none"'}><label>From year<input class="field" id="v38From" type="number" min="1900" max="2100" step="1" inputmode="numeric" placeholder="e.g. 2003" value="${esc(v38From)}"></label><label>To year<input class="field" id="v38To" type="number" min="1900" max="2100" step="1" inputmode="numeric" placeholder="e.g. 2008" value="${esc(v38To)}"></label></div><p><small>These filters use the show's first premiere date. A custom range overrides the decade and specific year; leave either custom field blank for an open-ended range.</small></p>`;
+ decade?.closest('label')?.after(wrap);
+ const period=m.querySelector('#v38Period'),year=m.querySelector('#v38Year'),custom=m.querySelector('#v38Custom'),from=m.querySelector('#v38From'),to=m.querySelector('#v38To');
+ period.onchange=()=>{v38Period=period.value;v38Year='all';v38ResetResults();render()};
+ year.onchange=()=>{v38Year=year.value;v38ResetResults();render()};
+ custom.onchange=()=>{v38Custom=custom.checked;v38ResetResults();render()};
+ for(const [el,key] of [[from,'from'],[to,'to']])el.oninput=()=>{if(key==='from')v38From=el.value.trim();else v38To=el.value.trim();v38ResetResults()};
+};
+fetchArchive=async function(more){
+ if(v38Custom){const a=v38From,b=v38To,valid=x=>!x||/^\d{4}$/.test(x)&&Number(x)>=1900&&Number(x)<=2100;if(!valid(a)||!valid(b)||(a&&b&&Number(a)>Number(b))){archiveError='Enter valid four-digit years (1900–2100), with From no later than To.';render();return}}
+ const oldApi=api;
+ // Apply the date controls to the discovery URL without changing any other filters or pagination.
+ api=function(path){if(path.startsWith('/discover/tv?')){const q=new URLSearchParams(path.split('?')[1]);q.delete('first_air_date.gte');q.delete('first_air_date.lte');let start='',end='';if(v38Custom){start=v38From;end=v38To}else if(v38Year!=='all'){start=end=v38Year}else if(archiveFilters.decade!=='all'){let n=Number(archiveFilters.decade);start=String(n+(v38Period==='second'?5:0));end=String(n+(v38Period==='first'?4:9))}if(start)q.set('first_air_date.gte',start+'-01-01');if(end)q.set('first_air_date.lte',end+'-12-31');path='/discover/tv?'+q.toString()}return oldApi(path)};
+ try{return await v38PreviousArchiveFetch(more)}finally{api=oldApi}
+};
 render();
 </script></body></html>
